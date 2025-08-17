@@ -3,7 +3,19 @@ const db = require("../config/db");
 //Get All student list
 const getStudents = async (req, res) => {
   try {
-    const data = await db.query("SELECT * FROM students");
+
+
+    let {page =1 , limit = 2} = req.query;
+
+    page = parseInt(page);
+    limit = parseInt(limit);
+
+    const offset = (page -1 ) *limit;
+
+    const [[{total}]] = await db.query('SELECT COUNT(*) as total FROM students');
+
+
+    const data = await db.query(`SELECT * FROM students LIMIT ? OFFSET ?`,[limit, offset]);
     if (!data) {
       return res.status(404).send({
         success: false,
@@ -13,8 +25,15 @@ const getStudents = async (req, res) => {
     return res.status(200).send({
       success: true,
       message: "All Records Found",
-      totalStudents: data[0].length,
+    //   totalStudents: data[0].length,
       data: data[0],
+       pagination: {
+        totalStudents :total,                      
+        currentPage: page,                  
+        limit,                     
+        totalPages: Math.ceil(total / limit),
+       
+      },
     });
   } catch (e) {
     console.log(e);
@@ -29,6 +48,7 @@ const getStudents = async (req, res) => {
 //GET STUDENTS BY ID
 getStudentById = async (req, res) => {
   try {
+
     const studentId = req.params.id;
     const [data] = await db.query(`SELECT * FROM students WHERE id=?`, [
       studentId,
