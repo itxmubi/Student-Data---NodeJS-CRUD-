@@ -20,6 +20,9 @@ app.use(express.json());
 //routes
 
 app.use('/api/v1/student',require('./routes/studentroutes'))
+app.use('/api/v1/auth', require('./routes/authroutes')); // 👈 add this line
+
+
 app.get('/test',(req,res )=>{
 res.status(200).send("<h1>Welcome Student CRUD APP</h1>");
 
