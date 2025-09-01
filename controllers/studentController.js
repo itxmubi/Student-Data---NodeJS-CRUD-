@@ -3,10 +3,7 @@ const db = require("../config/db");
 //Get All student list
 const getStudents = async (req, res) => {
   try {
-
-
     let {page =1 , limit = 2} = req.query;
-
     page = parseInt(page);
     limit = parseInt(limit);
 

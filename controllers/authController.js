@@ -10,6 +10,7 @@ const cors = require("cors");
 const helmet = require("helmet");
 const morgan = require("morgan");
 const crypto = require("crypto");
+const sendResponse = require("../Utils/response_format");
 
 function isvalidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(email).toLowerCase());
@@ -25,25 +26,27 @@ function sha256Hex(s) {
 }
 
 function generateOpaqueToken() {
-return crypto.randomBytes(64).toString("hex");
+  return crypto.randomBytes(64).toString("hex");
 }
 
 function signAccessToken(user) {
-  return (
-    jwt.sign({
+  return jwt.sign(
+    {
       sub: String(user.id),
-      email:user.email},
-      process.env.ACCESS_TOKEN_SECRET,
-     { expiresIn:  process.env.ACCESS_TOKEN_TTL }
-    
-  ));
+      email: user.email,
+    },
+    process.env.ACCESS_TOKEN_SECRET,
+    { expiresIn: process.env.ACCESS_TOKEN_TTL }
+  );
 }
 
 async function saveRefreshToken(userid, rawToken) {
   const tokenHash = sha256Hex(String(rawToken));
-  console.log(`Values are ${userid}, ${tokenHash}, ${process.env.REFRESH_TOKEN_TTL_DAYS}`,)
+  console.log(
+    `Values are ${userid}, ${tokenHash}, ${process.env.REFRESH_TOKEN_TTL_DAYS}`
+  );
   const [rows] = await db.query(
-   `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
+    `INSERT INTO refresh_tokens (user_id, token_hash, expires_at) 
    VALUES (?, ?, DATE_ADD(UTC_TIMESTAMP(), INTERVAL ? DAY))`,
     [userid, tokenHash, process.env.REFRESH_TOKEN_TTL_DAYS]
   );
@@ -85,7 +88,7 @@ async function authRequired(req, res, next) {
       return res
         .status(401)
         .json({ success: false, message: "Missing access token" });
-    const payload = jwt.verify(token,process.env.ACCESS_TOKEN_SECRET);
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
     req.user = { id: parseInt(payload.sub, 10), email: payload.email };
     next();
   } catch (e) {
@@ -151,53 +154,88 @@ userSignUp = async (req, res) => {
 };
 
 signIn = async (req, res) => {
-  try{
-  const { email, password } = req.body || {};
-  console.log("Signup input:", req.body); 
-  if (!email || !password) {
-    return res
-      .status(400)
-      .send({ success: false, message: "email and password are required" });
-  }
-
-  const [rows] = await db.query(
-    `SELECT id, name, email,password_hash FROM users WHERE email = ? LIMIT 1`,
-    [email]
-  );
-  const user = rows[0];
-  if (!user) {
-    return res
-      .status(401)
-      .json({ success: false, message: "Invalid credentials" });
-  }
-
-  const ok = await bcrypt.compare(password, user.password_hash);
-  if (!ok) {
-      return res.status(401).json({ success: false, message: 'Invalid credentials' });
+  try {
+    const { email, password } = req.body || {};
+    console.log("Signup input:", req.body);
+    if (!email || !password) {
+      return res
+        .status(400)
+        .send({ success: false, message: "email and password are required" });
     }
 
-    await db.query(`UPDATE users SET last_login_at = UTC_TIMESTAMP() where id = ? `, [user.id])
+    const [rows] = await db.query(
+      `SELECT id, name, email,password_hash FROM users WHERE email = ? LIMIT 1`,
+      [email]
+    );
+    const user = rows[0];
+    if (!user) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
+    }
 
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) {
+      return res
+        .status(401)
+        .json({ success: false, message: "Invalid credentials" });
+    }
 
-    const safeUser = {id: user.id, name: user.name, email: user.email};
-    const accessToken = signAccessToken(safeUser)
+    await db.query(
+      `UPDATE users SET last_login_at = UTC_TIMESTAMP() where id = ? `,
+      [user.id]
+    );
+
+    const safeUser = { id: user.id, name: user.name, email: user.email };
+    const accessToken = signAccessToken(safeUser);
     const refresh_token = generateOpaqueToken();
-    await  saveRefreshToken(user.id,refresh_token);
+    await saveRefreshToken(user.id, refresh_token);
 
-
-     return res.status(200).json({
+    return res.status(200).json({
       success: true,
-      message: 'Logged in',
+      message: "Logged in",
       user: safeUser,
-      tokens: { accessToken, refresh_token }
+      tokens: { accessToken, refresh_token },
     });
   } catch (error) {
     console.error(error);
-    return res.status(500).json({ success: false, message: 'Login failed', error: error.message });
+    return res
+      .status(500)
+      .json({ success: false, message: "Login failed", error: error.message });
   }
-
-
-
 };
 
-module.exports = { userSignUp, signIn };
+async function authRequired(req, res, next) {
+  try {
+    const auth = req.headers.authorization || "";
+    const token = auth.startsWith("Bearer ") ? auth.slice(7) : null;
+    if (!token) {
+      return sendResponse(res, 401, false, "Missing access token", null);
+    }
+    const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    req.user = { id: parseInt(payload.sub, 10), email: payload.email };
+    next();
+  } catch (error) {
+    return sendResponse(res, 401, false, "Invalid/expired access token", null);
+  }
+}
+
+async function userData(req, res) {
+  try {
+    const [rows] = await db.query(
+      `SELECT id, name, email, created_at, last_login_at 
+       FROM users 
+       WHERE id=? LIMIT 1`,
+      [req.user.id]
+    );
+    if (!rows.length) {
+      return sendResponse(res, 404, false, "User not found", null);
+    }
+    return sendResponse(res, 200, true, "User found", rows[0]);
+  } catch (error) {
+    console.error(error);
+    return sendResponse(res, 500, false, "Failed to fetch user", null);
+  }
+}
+
+module.exports = { userSignUp, signIn, authRequired ,userData};
