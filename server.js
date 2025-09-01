@@ -21,6 +21,7 @@ app.use(express.json());
 
 app.use('/api/v1/student',require('./routes/studentroutes'))
 app.use('/api/v1/auth', require('./routes/authroutes')); // 👈 add this line
+app.use("/api/v1/notify", require("./routes/notificationRoute"));
 
 
 app.get('/test',(req,res )=>{
