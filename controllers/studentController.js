@@ -3,16 +3,16 @@ const db = require("../config/db");
 //Get All student list
 const getStudents = async (req, res) => {
   try {
-    let {page =1 , limit = 2} = req.query;
+    let { page = 1, limit = 50 } = req.query;
     page = parseInt(page);
     limit = parseInt(limit);
 
-    const offset = (page -1 ) *limit;
+    const offset = (page - 1) * limit;
 
-    const [[{total}]] = await db.query('SELECT COUNT(*) as total FROM students');
+    const [[{ total }]] = await db.query('SELECT COUNT(*) as total FROM students');
 
 
-    const data = await db.query(`SELECT * FROM students LIMIT ? OFFSET ?`,[limit, offset]);
+    const data = await db.query(`SELECT * FROM students LIMIT ? OFFSET ?`, [limit, offset]);
     if (!data) {
       return res.status(404).send({
         success: false,
@@ -22,14 +22,14 @@ const getStudents = async (req, res) => {
     return res.status(200).send({
       success: true,
       message: "All Records Found",
-    //   totalStudents: data[0].length,
+      //   totalStudents: data[0].length,
       data: data[0],
-       pagination: {
-        totalStudents :total,                      
-        currentPage: page,                  
-        limit,                     
+      pagination: {
+        totalStudents: total,
+        currentPage: page,
+        limit,
         totalPages: Math.ceil(total / limit),
-       
+
       },
     });
   } catch (e) {
@@ -50,7 +50,7 @@ getStudentById = async (req, res) => {
     const [data] = await db.query(`SELECT * FROM students WHERE id=?`, [
       studentId,
     ]);
-     if (!data || data.length === 0) {
+    if (!data || data.length === 0) {
       return res.status(404).send({
         success: false,
         message: "No Record Found against this Id ",
@@ -71,28 +71,54 @@ getStudentById = async (req, res) => {
   }
 };
 //CREATE STUDENT
- createStudent = async(req,res)=>{
- try {
-    const {name, roll_no,fees,clas, medium} = req.body;
-    console.log(`body is ${name},${roll_no},${fees},${clas},${medium}`)
-   if( !name || !roll_no || !fees || !clas || !medium){
-    return res.status(500).send({
+createStudent = async (req, res) => {
+  try {
+    let { name, roll_no, fees, clas, medium } = req.body;
+
+    // Required field validation
+    if (!name || !roll_no || !fees || !clas || !medium) {
+      return res.status(400).send({
         success: false,
-        message: "Please provide all fields"
-    })
-   }
-   const data = await db.query(`INSERT INTO students ( name, roll_no, fees, class , medium) VALUES (? , ? , ?, ?, ? )`,[name, roll_no,fees, clas,medium]);
-//    const data = await db.query(`INSERT INTO students (id, name, roll_no, fees, class , medium) VALUES (? ,? , ? , ?, ?, ? )`,[id,name, roll_no,fees, clas,medium]);
-    if (!data)
-      return res.status(404).send({
-        success: false,
-        message: "Error in insert query ",
+        message: "Please provide all fields",
       });
+    }
+
+    // Type validation
+    if (typeof name !== "string" || typeof medium !== "string") {
+      return res.status(400).send({
+        success: false,
+        message: "Name and medium must be string",
+      });
+    }
+
+    if (
+      isNaN(roll_no) ||
+      isNaN(fees) ||
+      isNaN(clas)
+    ) {
+      return res.status(400).send({
+        success: false,
+        message: "roll_no, fees and class must be numbers",
+      });
+    }
+
+    // Convert to integer
+    roll_no = parseInt(roll_no);
+    fees = parseInt(fees);
+    clas = parseInt(clas);
+
+    const data = await db.query(
+      `INSERT INTO students (name, roll_no, fees, class, medium)
+       VALUES (?, ?, ?, ?, ?)`,
+      [name, roll_no, fees, clas, medium]
+    );
+
     res.status(200).send({
       success: true,
       message: "New Student data Added",
       data: data[0],
     });
+
   } catch (error) {
     console.log(error);
     res.status(500).send({
@@ -101,20 +127,20 @@ getStudentById = async (req, res) => {
       error,
     });
   }
-    
- }
+};
+
 //UPDATE STUDENT
- updateStudent = async(req,res)=>{
- try {
-    const id= req.params.id;
-   if( !id){
-    return res.status(404).send({
+updateStudent = async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!id) {
+      return res.status(404).send({
         success: false,
         message: "Invalid Id or Provide Id"
-    })
-   }
-   const {name,roll_no, fees, medium} = req.body
-   const data = await db.query(`UPDATE students SET name=? ,roll_no=?,fees=?,medium=? WHERE id=?`, [name,roll_no,fees,medium,id]);
+      })
+    }
+    const { name, roll_no, fees, medium } = req.body
+    const data = await db.query(`UPDATE students SET name=? ,roll_no=?,fees=?,medium=? WHERE id=?`, [name, roll_no, fees, medium, id]);
     if (!data)
       return res.status(404).send({
         success: false,
@@ -133,15 +159,15 @@ getStudentById = async (req, res) => {
       error,
     });
   }
-    
- }
 
- // DELETE STUDENT DATA
- deleteStudent = async(req,res)=>{
- try {
+}
+
+// DELETE STUDENT DATA
+deleteStudent = async (req, res) => {
+  try {
     const id = req.params.id;
 
-   const data = await db.query(`DELETE FROM students WHERE id=?`, [id]);
+    const data = await db.query(`DELETE FROM students WHERE id=?`, [id]);
     if (!data)
       return res.status(404).send({
         success: false,
@@ -160,7 +186,7 @@ getStudentById = async (req, res) => {
       error,
     });
   }
-    
- }
 
-module.exports = { getStudents, getStudentById,createStudent,updateStudent ,deleteStudent};
+}
+
+module.exports = { getStudents, getStudentById, createStudent, updateStudent, deleteStudent };

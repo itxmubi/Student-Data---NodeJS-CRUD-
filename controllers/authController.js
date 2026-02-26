@@ -213,6 +213,7 @@ async function authRequired(req, res, next) {
       return sendResponse(res, 401, false, "Missing access token", null);
     }
     const payload = jwt.verify(token, process.env.ACCESS_TOKEN_SECRET);
+    
     req.user = { id: parseInt(payload.sub, 10), email: payload.email };
     next();
   } catch (error) {
