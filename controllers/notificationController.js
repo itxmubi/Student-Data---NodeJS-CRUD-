@@ -1,8 +1,12 @@
-const admin = require('../config/firebase');
+const { admin, firebaseInitialized } = require('../config/firebase');
 const sendResponse = require('../Utils/response_format');
 
 const sendNotification = async (req, res) => {
     try {
+        if (!firebaseInitialized) {
+            return sendResponse(res, 503, false, "Firebase notifications are not configured", null);
+        }
+
         const { token, title, body } = req.body;
 
         if (!token || !title || !body) {
