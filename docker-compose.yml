@@ -1,0 +1,61 @@
+services:
+
+  # ─── MySQL Database ───────────────────────────────────────────
+  db:
+    image: mysql:8.0
+    container_name: student_db
+    restart: always
+    environment:
+      MYSQL_ROOT_PASSWORD: rootpassword   # root password (can be anything)
+      MYSQL_DATABASE: student_db          # auto-creates this database
+      MYSQL_USER: appuser                 # optional app user
+      MYSQL_PASSWORD: apppassword         # optional app user password
+    ports:
+      - "3306:3306"                       # exposes MySQL on your Mac at localhost:3306
+    volumes:
+      - mysql_data:/var/lib/mysql         # persists DB data between restarts
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "root", "-prootpassword"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Node.js App ─────────────────────────────────────────────
+  app:
+    build:
+      context: .                          # project root
+      dockerfile: Dockerfile              # explicit Dockerfile path
+    container_name: student_app
+    restart: always
+    ports:
+      - "8000:8000"                       # access app at http://localhost:8000
+    environment:
+      PORT: 8000
+      DB_HOST: db                         # 'db' = the service name above (Docker DNS)
+      DB_USER: root
+      DB_PASSWORD: rootpassword
+      DB_NAME: student_db
+      JWT_SECRET: your_jwt_secret_here    # change this to a strong secret
+    depends_on:
+      db:
+        condition: service_healthy        # waits for MySQL to be ready before starting
+    volumes:
+      - .:/app                            # live reload: mirrors your local code into container
+      - /app/node_modules                 # keeps container's node_modules separate
+      - ./init.sql:/docker-entrypoint-initdb.d/init.sql   # ← add this
+
+
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: student_phpmyadmin
+    ports:
+      - "8080:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: rootpassword
+    depends_on:
+      - db
+
+volumes:
+  mysql_data:                             # named volume for persistent MySQL data
+  
